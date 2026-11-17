@@ -1,0 +1,256 @@
+// High quality sample chart data generators & presets for instant testing
+import { AssetClass, Timeframe, Strategy } from '../types';
+
+export interface SampleChartPreset {
+  id: string;
+  asset: string;
+  assetClass: AssetClass;
+  timeframe: Timeframe;
+  strategy: Strategy;
+  title: string;
+  description: string;
+  dataUrl: string;
+}
+
+// Generate realistic SVG chart images as base64 data URLs
+export function generateCandlestickChartSvg(
+  asset: string,
+  timeframe: string,
+  bias: 'bullish' | 'bearish',
+  startPrice: number,
+  volatility: number
+): string {
+  const width = 1200;
+  const height = 675;
+  const candleCount = 48;
+  const candleWidth = (width - 160) / candleCount;
+  
+  let currentPrice = startPrice;
+  const candles: Array<{ open: number; close: number; high: number; low: number; vol: number }> = [];
+
+  let minPrice = Infinity;
+  let maxPrice = -Infinity;
+
+  for (let i = 0; i < candleCount; i++) {
+    const trendStep = bias === 'bullish' ? 0.35 : -0.35;
+    const change = (Math.random() - 0.45 + trendStep) * volatility;
+    const open = currentPrice;
+    const close = open + change;
+    const wickHigh = Math.random() * (volatility * 0.7);
+    const wickLow = Math.random() * (volatility * 0.7);
+    const high = Math.max(open, close) + wickHigh;
+    const low = Math.min(open, close) - wickLow;
+    const vol = Math.floor(Math.random() * 80 + 20);
+
+    candles.push({ open, close, high, low, vol });
+    minPrice = Math.min(minPrice, low);
+    maxPrice = Math.max(maxPrice, high);
+    currentPrice = close;
+  }
+
+  const priceRange = maxPrice - minPrice || 1;
+  const paddingY = 60;
+  const chartHeight = height - paddingY * 2 - 80;
+
+  const priceToY = (price: number) => {
+    return paddingY + chartHeight - ((price - minPrice) / priceRange) * chartHeight;
+  };
+
+  let candleElements = '';
+  let volumeElements = '';
+
+  candles.forEach((c, i) => {
+    const x = 60 + i * candleWidth;
+    const isGreen = c.close >= c.open;
+    const color = isGreen ? '#10b981' : '#f43f5e';
+    const wickX = x + candleWidth / 2;
+    const openY = priceToY(c.open);
+    const closeY = priceToY(c.close);
+    const highY = priceToY(c.high);
+    const lowY = priceToY(c.low);
+    const topY = Math.min(openY, closeY);
+    const bodyHeight = Math.max(Math.abs(closeY - openY), 2);
+
+    // Wick
+    candleElements += `<line x1="${wickX}" y1="${highY}" x2="${wickX}" y2="${lowY}" stroke="${color}" stroke-width="1.5" />`;
+    // Body
+    candleElements += `<rect x="${x + 2}" y="${topY}" width="${Math.max(candleWidth - 4, 3)}" height="${bodyHeight}" fill="${color}" rx="1" />`;
+
+    // Volume bar
+    const volHeight = (c.vol / 100) * 60;
+    const volY = height - 30 - volHeight;
+    volumeElements += `<rect x="${x + 2}" y="${volY}" width="${Math.max(candleWidth - 4, 3)}" height="${volHeight}" fill="${color}" opacity="0.25" />`;
+  });
+
+  // Price axis gridlines
+  let gridLines = '';
+  const gridCount = 6;
+  for (let g = 0; g <= gridCount; g++) {
+    const p = minPrice + (priceRange / gridCount) * g;
+    const y = priceToY(p);
+    const formattedPrice = p > 1000 ? p.toFixed(2) : p.toFixed(4);
+    gridLines += `
+      <line x1="60" y1="${y}" x2="${width - 110}" y2="${y}" stroke="#1f293d" stroke-dasharray="3 3" stroke-width="1" />
+      <rect x="${width - 105}" y="${y - 9}" width="95" height="18" fill="#0f172a" stroke="#334155" stroke-width="1" rx="3" />
+      <text x="${width - 98}" y="${y + 4}" fill="#94a3b8" font-family="'JetBrains Mono', 'Courier New', monospace" font-size="13" font-weight="600">${formattedPrice}</text>
+    `;
+  }
+
+  // Time gridlines
+  let timeLabels = '';
+  for (let t = 0; t < candleCount; t += 8) {
+    const x = 60 + t * candleWidth;
+    gridLines += `<line x1="${x}" y1="${paddingY}" x2="${x}" y2="${height - 90}" stroke="#161f30" stroke-width="1" />`;
+    timeLabels += `<text x="${x - 10}" y="${height - 12}" fill="#64748b" font-family="'JetBrains Mono', monospace" font-size="11">T-${candleCount - t} ${timeframe}</text>`;
+  }
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" style="background-color: #0b0e14;">
+      <defs>
+        <linearGradient id="bgGlow" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#0e1524" />
+          <stop offset="100%" stop-color="#080a0f" />
+        </linearGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#bgGlow)" />
+      
+      <!-- Watermark / Brand Context -->
+      <text x="70" y="40" fill="#334155" font-family="'Plus Jakarta Sans', sans-serif" font-weight="800" font-size="22" letter-spacing="1">TRADEGUARD AI - INSTITUTIONAL TERMINAL</text>
+      <text x="70" y="65" fill="#38bdf8" font-family="'JetBrains Mono', monospace" font-weight="700" font-size="15">${asset} - ${timeframe} - VISIBLE PRICE AXIS</text>
+      <text x="${width - 240}" y="40" fill="#10b981" font-family="'JetBrains Mono', monospace" font-size="12">[PRICE SCALE VERIFIED]</text>
+      
+      <!-- Grid & Axes -->
+      ${gridLines}
+      ${timeLabels}
+      
+      <!-- Volume Area -->
+      <line x1="60" y1="${height - 90}" x2="${width - 110}" y2="${height - 90}" stroke="#1e293b" stroke-width="1.5" />
+      <text x="70" y="${height - 95}" fill="#475569" font-family="'JetBrains Mono', monospace" font-size="10">VOL (SMA 20)</text>
+      ${volumeElements}
+
+      <!-- Candlesticks -->
+      ${candleElements}
+
+      <!-- Current Price Badge on Axis -->
+      <rect x="${width - 105}" y="${priceToY(currentPrice) - 11}" width="95" height="22" fill="${currentPrice >= startPrice ? '#10b981' : '#f43f5e'}" rx="4" />
+      <text x="${width - 98}" y="${priceToY(currentPrice) + 4}" fill="#ffffff" font-family="'JetBrains Mono', monospace" font-weight="800" font-size="13">${currentPrice > 1000 ? currentPrice.toFixed(2) : currentPrice.toFixed(4)}</text>
+    </svg>
+  `;
+
+  // Return base64 encoded data url
+  const base64 = typeof btoa !== 'undefined'
+    ? btoa(unescape(encodeURIComponent(svg)))
+    : Buffer.from(svg).toString('base64');
+  return `data:image/svg+xml;base64,${base64}`;
+}
+
+export interface MultiTimeframeChartSet {
+  htf: string;
+  mtf: string;
+  ltf: string;
+  htfTimeframe: Timeframe;
+  mtfTimeframe: Timeframe;
+  ltfTimeframe: Timeframe;
+}
+
+export function generateMultiTimeframeChartSet(
+  asset: string,
+  basePrice: number,
+  volatility: number,
+  bias: 'bullish' | 'bearish' = 'bullish',
+  htfTf: Timeframe = 'H4',
+  mtfTf: Timeframe = 'H1',
+  ltfTf: Timeframe = 'M15'
+): MultiTimeframeChartSet {
+  return {
+    htf: generateCandlestickChartSvg(asset, htfTf, bias, basePrice, volatility * 2.2),
+    mtf: generateCandlestickChartSvg(asset, mtfTf, bias, basePrice + (bias === 'bullish' ? -volatility * 0.4 : volatility * 0.4), volatility * 1.4),
+    ltf: generateCandlestickChartSvg(asset, ltfTf, bias, basePrice, volatility * 0.8),
+    htfTimeframe: htfTf,
+    mtfTimeframe: mtfTf,
+    ltfTimeframe: ltfTf,
+  };
+}
+
+export const SAMPLE_CHARTS: SampleChartPreset[] = [
+  {
+    id: 'xauusd-4h-smc',
+    asset: 'XAUUSD',
+    assetClass: 'Commodities',
+    timeframe: 'H4',
+    strategy: 'SMC',
+    title: 'XAU/USD — SMC Institutional Order Block',
+    description: '4H Institutional Demand Zone with 15M sniper mitigation',
+    dataUrl: generateCandlestickChartSvg('XAUUSD', 'H4', 'bullish', 4594.2, 24.5),
+  },
+  {
+    id: 'eurusd-1h-crt',
+    asset: 'EURUSD',
+    assetClass: 'Forex',
+    timeframe: 'H1',
+    strategy: 'CRT',
+    title: 'EUR/USD — CRT Candle Range Theory',
+    description: 'Quarterly range expansion with London session liquidity run',
+    dataUrl: generateCandlestickChartSvg('EURUSD', 'H1', 'bearish', 1.0895, 0.0014),
+  },
+  {
+    id: 'gbpusd-4h-smc',
+    asset: 'GBPUSD',
+    assetClass: 'Forex',
+    timeframe: 'H4',
+    strategy: 'SMC',
+    title: 'GBP/USD — SMC Liquidity Sweep & Mitigation',
+    description: '4H BOS with 1H FVG mitigation and 15M entry confirmation',
+    dataUrl: generateCandlestickChartSvg('GBPUSD', 'H4', 'bullish', 1.2950, 0.0020),
+  },
+  {
+    id: 'btcusdt-4h-crt',
+    asset: 'BTCUSDT',
+    assetClass: 'Crypto',
+    timeframe: 'H4',
+    strategy: 'CRT',
+    title: 'BTC/USDT — CRT Session Range Sweep',
+    description: 'Asian range high sweep with NY session reversal target',
+    dataUrl: generateCandlestickChartSvg('BTCUSDT', 'H4', 'bearish', 104850, 420),
+  },
+  {
+    id: 'nas100-4h-ict',
+    asset: 'NAS100',
+    assetClass: 'Indices',
+    timeframe: 'H4',
+    strategy: 'ICT',
+    title: 'NAS100 — ICT Killzone & Fair Value Gap',
+    description: '4H Draw on Liquidity with 15M OTE 62-79% retracement entry',
+    dataUrl: generateCandlestickChartSvg('NAS100', 'H4', 'bullish', 20450, 85),
+  },
+  {
+    id: 'usdjpy-4h-price-action',
+    asset: 'USDJPY',
+    assetClass: 'Forex',
+    timeframe: 'H4',
+    strategy: 'Price Action',
+    title: 'USD/JPY — Classical S/R Polarity Flip',
+    description: 'Horizontal resistance flipped to support with pinbar rejection',
+    dataUrl: generateCandlestickChartSvg('USDJPY', 'H4', 'bullish', 153.25, 0.45),
+  },
+];
+
+export function getMultiTimeframeSetForPreset(presetId: string): MultiTimeframeChartSet {
+  switch (presetId) {
+    case 'xauusd-4h-smc':
+      return generateMultiTimeframeChartSet('XAUUSD', 4594.2, 24.5, 'bullish', 'H4', 'H1', 'M15');
+    case 'eurusd-1h-crt':
+      return generateMultiTimeframeChartSet('EURUSD', 1.0895, 0.0014, 'bearish', 'H4', 'H1', 'M15');
+    case 'gbpusd-4h-smc':
+      return generateMultiTimeframeChartSet('GBPUSD', 1.2950, 0.0020, 'bullish', 'H4', 'H1', 'M15');
+    case 'btcusdt-4h-crt':
+      return generateMultiTimeframeChartSet('BTCUSDT', 104850, 420, 'bearish', 'H4', 'H1', 'M15');
+    case 'nas100-4h-ict':
+      return generateMultiTimeframeChartSet('NAS100', 20450, 85, 'bullish', 'H4', 'H1', 'M15');
+    case 'usdjpy-4h-price-action':
+      return generateMultiTimeframeChartSet('USDJPY', 153.25, 0.45, 'bullish', 'H4', 'H1', 'M15');
+    default:
+      return generateMultiTimeframeChartSet('XAUUSD', 4594.2, 24.5, 'bullish', 'H4', 'H1', 'M15');
+  }
+}
+

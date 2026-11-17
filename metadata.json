@@ -1,0 +1,6 @@
+{
+  "name": "TradeGuard",
+  "description": "Production-grade institutional AI chart analysis engine for Forex, Crypto, Indices & Commodities — strictly enforcing 3-timeframe visual confluence (4H, 1H, 15M), SMC & CRT strategies, and server-side validation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
